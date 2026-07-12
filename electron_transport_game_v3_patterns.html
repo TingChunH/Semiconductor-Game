@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Electron Transport Lab</title>
+<style>
+  :root {
+    --bg: #07111f;
+    --panel: #101d31;
+    --panel2: #0b1728;
+    --text: #edf5ff;
+    --muted: #9fb3cc;
+    --accent: #66d9ff;
+    --danger: #ff6476;
+    --good: #72e2a1;
+    --warn: #ffd166;
+    --line: #2a4260;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: radial-gradient(circle at top, #142842 0%, var(--bg) 58%);
+    color: var(--text);
+    padding: 18px;
+  }
+  .wrap { width: min(1160px, 100%); margin: auto; }
+  h1 {
+    margin: 0 0 6px;
+    font-size: clamp(25px, 4vw, 42px);
+    letter-spacing: .025em;
+  }
+  .subtitle { color: var(--muted); margin-bottom: 14px; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 310px;
+    gap: 14px;
+  }
+  .game-shell { position: relative; }
+  canvas {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #091524;
+    box-shadow: 0 18px 50px rgba(0,0,0,.34);
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: rgba(3, 9, 17, .72);
+    backdrop-filter: blur(3px);
+    padding: 22px;
+  }
+  .overlay.hidden { display: none; }
+  .card {
+    width: min(790px, 96%);
+    background: rgba(13, 26, 44, .96);
+    border: 1px solid #3a5778;
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: 0 18px 55px rgba(0,0,0,.45);
+  }
+  .card h2 { margin: 0 0 10px; font-size: 28px; }
+  .card p { color: var(--muted); line-height: 1.55; }
+  .rules {
+    display: grid;
+    gap: 8px;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  .rule {
+    background: #0b1728;
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 9px 11px;
+  }
+  .rule.danger { border-left-color: var(--danger); }
+  .rule.good { border-left-color: var(--good); }
+  .track-section {
+    margin: 13px 0 10px;
+  }
+  .track-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .track-heading strong { font-size: 15px; }
+  .track-heading span { color: var(--muted); font-size: 12px; }
+  .track-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .track-card {
+    padding: 9px;
+    text-align: left;
+    background: #0b1728;
+    border: 1px solid #2f4868;
+    border-radius: 12px;
+    color: var(--text);
+    cursor: pointer;
+    transition: transform .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .track-card:hover {
+    transform: translateY(-2px);
+    background: #11223a;
+  }
+  .track-card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(102,217,255,.17);
+    background: #102741;
+  }
+  .track-preview {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    display: block;
+    border-radius: 8px;
+    border: 1px solid #2b4665;
+    background: #07121f;
+    margin-bottom: 7px;
+  }
+  .track-name {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 800;
+  }
+  .difficulty {
+    color: var(--warn);
+    white-space: nowrap;
+    font-size: 11px;
+  }
+  .track-description {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+    margin-top: 4px;
+    min-height: 31px;
+  }
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+    margin-top: 9px;
+  }
+  .secondary {
+    width: 100%;
+    margin-top: 9px;
+    background: #182a43;
+  }
+  .stars {
+    font-size: 40px;
+    letter-spacing: 6px;
+    color: var(--warn);
+    margin: 8px 0;
+  }
+  .panel {
+    background: rgba(16,29,49,.94);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px;
+  }
+  .mission {
+    background: var(--panel2);
+    border: 1px solid #274360;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+  .mission strong { display: block; margin-bottom: 5px; }
+  .mission p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .metric { margin-bottom: 14px; }
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+  .bar {
+    height: 10px;
+    background: #213450;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .bar > div {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--good));
+    transition: width .12s linear;
+  }
+  .timer {
+    font-size: 20px;
+    color: var(--warn);
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(3, 49px);
+    gap: 7px;
+    justify-content: center;
+    margin: 12px 0;
+  }
+  button {
+    border: 1px solid #3b5778;
+    background: #182a43;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    font-weight: 750;
+  }
+  button:hover { background: #213a5a; }
+  .primary {
+    width: 100%;
+    margin-top: 9px;
+    background: linear-gradient(135deg, #168bb6, #355ed5);
+    border: 0;
+  }
+  .message {
+    min-height: 58px;
+    padding: 10px;
+    border-radius: 10px;
+    background: var(--panel2);
+    color: var(--muted);
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .legend {
+    display: grid;
+    gap: 7px;
+    margin-top: 14px;
+    font-size: 13px;
+  }
+  .legend span::before {
+    content: "";
+    width: 11px;
+    height: 11px;
+    display: inline-block;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: -1px;
+    background: var(--dot);
+  }
+  .small {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 14px 0 0;
+  }
+  @media (max-width: 840px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 620px) {
+    .track-grid { grid-template-columns: 1fr; }
+    .track-description { min-height: 0; }
+    .button-row { grid-template-columns: 1fr; }
+    .overlay { overflow-y: auto; align-items: start; }
+    .card { margin: 10px 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Electron Transport Lab</h1>
+  <div class="subtitle">利用外加電場，引導電子穿越半導體並被右側電極收集。</div>
+
+  <div class="layout">
+    <section class="game-shell">
+      <canvas id="game" width="960" height="540"></canvas>
+
+      <div class="overlay" id="overlay">
+        <div class="card">
+          <h2 id="overlayTitle">電子傳輸任務</h2>
+          <p id="overlayText">在 45 秒內把電子送到右側電極。抵達即過關，剩餘傳輸效率決定星等。</p>
+
+          <div class="track-section" id="trackSection">
+            <div class="track-heading">
+              <strong>選擇材料 pattern</strong>
+              <span>不同障礙分布，規則與操作相同</span>
+            </div>
+            <div class="track-grid">
+              <button class="track-card selected" type="button" data-pattern="balanced">
+                <canvas class="track-preview" width="210" height="105" data-preview="balanced"></canvas>
+                <div class="track-name">
+                  <span>Pattern 1｜平衡晶格</span>
+                  <span class="difficulty">★☆☆</span>
+                </div>
+                <div class="track-description">各種障礙均衡分布，適合熟悉電場控制與穿隧。</div>
+              </button>
+
+              <button class="track-card" type="button" data-pattern="trapCorridor">
+                <canvas class="track-preview" width="210" height="105" data-preview="trapCorridor"></canvas>
+                <div class="track-name">
+                  <span>Pattern 2｜陷阱走廊</span>
+                  <span class="difficulty">★★☆</span>
+                </div>
+                <div class="track-description">陷阱交錯分布；路徑不窄，但停留時間容易增加。</div>
+              </button>
+
+              <button class="track-card" type="button" data-pattern="recombinationMaze">
+                <canvas class="track-preview" width="210" height="105" data-preview="recombinationMaze"></canvas>
+                <div class="track-name">
+                  <span>Pattern 3｜復合迷宮</span>
+                  <span class="difficulty">★★★</span>
+                </div>
+                <div class="track-description">能障迫使電子上下繞行，紅色電洞封鎖直接路徑。</div>
+              </button>
+            </div>
+          </div>
+
+          <div class="rules" id="overlayRules">
+            <div class="rule good"><strong>WIN：</strong>45 秒內抵達右側電極。</div>
+            <div class="rule danger"><strong>LOSE：</strong>碰到電洞而復合、傳輸效率降至 0%，或時間耗盡。</div>
+            <div class="rule"><strong>操作：</strong>方向鍵改變電場；W / S 微調路徑；空白鍵嘗試穿隧。</div>
+          </div>
+
+          <div class="stars" id="resultStars" style="display:none"></div>
+          <div class="button-row">
+            <button class="primary" id="overlayButton">以此 pattern 開始</button>
+            <button class="secondary" id="selectTrackButton" style="display:none">選擇其他 pattern</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="mission">
+        <strong>任務目標</strong>
+        <p>45 秒內抵達右側電極。避開紅色電洞；黃色缺陷與紫色陷阱會降低傳輸效率。</p>
+      </div>
+
+      <div class="metric-row">
+        <span>目前 pattern</span>
+        <strong id="currentPatternText">平衡晶格</strong>
+      </div>
+
+      <div class="metric-row">
+        <span>剩餘時間</span>
+        <strong class="timer" id="timeLeftText">45.0 s</strong>
+      </div>
+
+      <div class="metric">
+        <div class="metric-row"><span>電子能量</span><strong id="energyText">100%</strong></div>
+        <div class="bar"><div id="energyBar"></div></div>
+      </div>
+
+      <div class="metric">
+        <div class="metric-row"><span>傳輸效率</span><strong id="transmissionText">100%</strong></div>
+        <div class="bar"><div id="transmissionBar"></div></div>
+      </div>
+
+      <div class="metric-row"><span>外加電場</span><strong id="fieldText">→</strong></div>
+      <div class="metric-row"><span>穿隧冷卻</span><strong id="tunnelText">Ready</strong></div>
+      <div class="metric-row"><span>目前評價</span><strong id="ratingText">★★★</strong></div>
+
+      <div class="controls">
+        <span></span><button id="up">↑</button><span></span>
+        <button id="left">←</button><button id="down">↓</button><button id="right">→</button>
+      </div>
+
+      <button class="primary" id="restartBtn">重新開始</button>
+
+      <div class="message" id="message">
+        按「開始遊戲」閱讀規則並進入任務。
+      </div>
+
+      <div class="legend">
+        <span style="--dot:#f4c542">點缺陷：降低效率與能量</span>
+        <span style="--dot:#8d6cff">陷阱：短暫困住電子</span>
+        <span style="--dot:#ff5b6e">電洞：接觸後立即復合</span>
+        <span style="--dot:#8fe0ff">薄能障：空白鍵可嘗試穿隧</span>
+        <span style="--dot:#aab4c2">右側電極：抵達即過關</span>
+      </div>
+
+      <p class="small">
+        「傳輸效率」是遊戲化指標，用來綜合表示散射與陷阱對有效傳輸的影響，不等同於單一標準材料參數。
+      </p>
+    </aside>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const overlay = document.getElementById("overlay");
+const overlayTitle = document.getElementById("overlayTitle");
+const overlayText = document.getElementById("overlayText");
+const overlayRules = document.getElementById("overlayRules");
+const overlayButton = document.getElementById("overlayButton");
+const selectTrackButton = document.getElementById("selectTrackButton");
+const trackSection = document.getElementById("trackSection");
+const trackCards = [...document.querySelectorAll(".track-card")];
+const resultStars = document.getElementById("resultStars");
+
+const energyText = document.getElementById("energyText");
+const energyBar = document.getElementById("energyBar");
+const transmissionText = document.getElementById("transmissionText");
+const transmissionBar = document.getElementById("transmissionBar");
+const timeLeftText = document.getElementById("timeLeftText");
+const fieldText = document.getElementById("fieldText");
+const tunnelText = document.getElementById("tunnelText");
+const ratingText = document.getElementById("ratingText");
+const currentPatternText = document.getElementById("currentPatternText");
+const message = document.getElementById("message");
+
+const TIME_LIMIT = 45;
+let state = "intro";
+let last = 0;
+let elapsed = 0;
+let field = { x: 1, y: 0 };
+let keys = {};
+let tunnelCooldown = 0;
+let trapTimer = 0;
+let flash = 0;
+let selectedPattern = "balanced";
+
+const electron = {
+  x: 80, y: 270, vx: 0, vy: 0, r: 11,
+  energy: 100, transmission: 100
+};
+let obstacles = [];
+
+const levelPatterns = {
+  balanced: {
+    name: "平衡晶格",
+    description: "缺陷、陷阱、電洞與薄能障均衡分布。",
+    obstacles: [
+      { type:"defect", x:230, y:165, r:18, hit:false },
+      { type:"defect", x:315, y:390, r:18, hit:false },
+      { type:"trap", x:415, y:270, r:25, hit:false },
+      { type:"hole", x:525, y:145, r:18 },
+      { type:"hole", x:605, y:395, r:18 },
+      { type:"barrier", x:690, y:110, w:20, h:320, passed:false },
+      { type:"defect", x:780, y:250, r:18, hit:false },
+      { type:"contact", x:900, y:48, w:30, h:444 }
+    ]
+  },
+  trapCorridor: {
+    name: "陷阱走廊",
+    description: "多個陷阱交錯排列，考驗及早改變電場方向。",
+    obstacles: [
+      { type:"defect", x:210, y:270, r:18, hit:false },
+      { type:"trap", x:330, y:145, r:25, hit:false },
+      { type:"trap", x:410, y:390, r:25, hit:false },
+      { type:"hole", x:515, y:270, r:18 },
+      { type:"trap", x:600, y:145, r:25, hit:false },
+      { type:"barrier", x:690, y:40, w:20, h:300, passed:false },
+      { type:"trap", x:780, y:390, r:25, hit:false },
+      { type:"hole", x:820, y:150, r:18 },
+      { type:"contact", x:900, y:48, w:30, h:444 }
+    ]
+  },
+  recombinationMaze: {
+    name: "復合迷宮",
+    description: "兩道能障形成上下轉向路徑，電洞封鎖捷徑。",
+    obstacles: [
+      { type:"defect", x:205, y:120, r:18, hit:false },
+      { type:"hole", x:285, y:315, r:18 },
+      { type:"trap", x:380, y:175, r:25, hit:false },
+      { type:"barrier", x:470, y:25, w:20, h:355, passed:false },
+      { type:"hole", x:565, y:420, r:18 },
+      { type:"defect", x:640, y:165, r:18, hit:false },
+      { type:"barrier", x:720, y:205, w:20, h:310, passed:false },
+      { type:"hole", x:810, y:115, r:18 },
+      { type:"trap", x:815, y:360, r:25, hit:false },
+      { type:"contact", x:900, y:48, w:30, h:444 }
+    ]
+  }
+};
+
+function createLevel(patternKey = selectedPattern) {
+  return levelPatterns[patternKey].obstacles.map(obstacle => ({ ...obstacle }));
+}
+
+function selectPattern(patternKey) {
+  if (!levelPatterns[patternKey]) return;
+  selectedPattern = patternKey;
+  currentPatternText.textContent = levelPatterns[patternKey].name;
+
+  trackCards.forEach(card => {
+    card.classList.toggle("selected", card.dataset.pattern === patternKey);
+  });
+
+  if (state === "intro") {
+    obstacles = createLevel(patternKey);
+  }
+}
+
+function drawTrackPreviews() {
+  document.querySelectorAll(".track-preview").forEach(preview => {
+    const key = preview.dataset.preview;
+    const pctx = preview.getContext("2d");
+    const sx = preview.width / canvas.width;
+    const sy = preview.height / canvas.height;
+
+    pctx.fillStyle = "#07121f";
+    pctx.fillRect(0, 0, preview.width, preview.height);
+
+    pctx.globalAlpha = 0.25;
+    pctx.fillStyle = "#8eb6d8";
+    for (let x = 10; x < preview.width; x += 16) {
+      for (let y = 10; y < preview.height; y += 16) {
+        pctx.beginPath();
+        pctx.arc(x, y, 1.1, 0, Math.PI * 2);
+        pctx.fill();
+      }
+    }
+    pctx.globalAlpha = 1;
+
+    pctx.fillStyle = "#64d8ff";
+    pctx.beginPath();
+    pctx.arc(80 * sx, 270 * sy, 4, 0, Math.PI * 2);
+    pctx.fill();
+
+    for (const o of levelPatterns[key].obstacles) {
+      if (o.type === "defect") {
+        pctx.fillStyle = "#f4c542";
+        pctx.beginPath();
+        pctx.arc(o.x * sx, o.y * sy, 4, 0, Math.PI * 2);
+        pctx.fill();
+      } else if (o.type === "trap") {
+        pctx.strokeStyle = "#8d6cff";
+        pctx.lineWidth = 2;
+        pctx.beginPath();
+        pctx.arc(o.x * sx, o.y * sy, 5, 0, Math.PI * 2);
+        pctx.stroke();
+      } else if (o.type === "hole") {
+        pctx.fillStyle = "#ff5b6e";
+        pctx.beginPath();
+        pctx.arc(o.x * sx, o.y * sy, 4, 0, Math.PI * 2);
+        pctx.fill();
+      } else if (o.type === "barrier") {
+        pctx.fillStyle = "rgba(143,224,255,.55)";
+        pctx.fillRect(o.x * sx, o.y * sy, Math.max(3, o.w * sx), o.h * sy);
+      } else if (o.type === "contact") {
+        pctx.fillStyle = "#aab4c2";
+        pctx.fillRect(o.x * sx, o.y * sy, Math.max(4, o.w * sx), o.h * sy);
+      }
+    }
+  });
+}
+
+function resetGame() {
+  electron.x = 80;
+  electron.y = 270;
+  electron.vx = 0;
+  electron.vy = 0;
+  electron.energy = 100;
+  electron.transmission = 100;
+  elapsed = 0;
+  field = { x: 1, y: 0 };
+  tunnelCooldown = 0;
+  trapTimer = 0;
+  flash = 0;
+  obstacles = createLevel(selectedPattern);
+  state = "playing";
+  overlay.classList.add("hidden");
+  currentPatternText.textContent = levelPatterns[selectedPattern].name;
+  message.textContent = `任務開始：${levelPatterns[selectedPattern].name}。在倒數結束前抵達右側電極。`;
+  fieldText.textContent = "→";
+}
+
+function endGame(result, reason) {
+  state = result;
+  overlay.classList.remove("hidden");
+  overlayRules.style.display = "none";
+  trackSection.style.display = "none";
+  selectTrackButton.style.display = "block";
+
+  if (result === "won") {
+    const stars = electron.transmission >= 80 ? 3 :
+                  electron.transmission >= 50 ? 2 : 1;
+    const score = Math.max(
+      0,
+      Math.round(
+        10 * electron.transmission +
+        5 * electron.energy -
+        10 * elapsed
+      )
+    );
+    overlayTitle.textContent = "傳輸成功";
+    overlayText.textContent =
+      `電子已被右側電極收集。剩餘傳輸效率 ${Math.round(electron.transmission)}%，用時 ${elapsed.toFixed(1)} 秒，分數 ${score}。`;
+    resultStars.style.display = "block";
+    resultStars.textContent = "★".repeat(stars) + "☆".repeat(3-stars);
+    overlayButton.textContent = "再次挑戰此 pattern";
+    message.textContent = `WIN：電子成功抵達電極，獲得 ${stars} 星評價。`;
+  } else {
+    overlayTitle.textContent = "傳輸失敗";
+    overlayText.textContent = reason;
+    resultStars.style.display = "none";
+    overlayButton.textContent = "再次挑戰此 pattern";
+    message.textContent = `LOSE：${reason}`;
+  }
+}
+
+function showIntro() {
+  state = "intro";
+  overlay.classList.remove("hidden");
+  overlayRules.style.display = "grid";
+  trackSection.style.display = "block";
+  selectTrackButton.style.display = "none";
+  resultStars.style.display = "none";
+  overlayTitle.textContent = "電子傳輸任務";
+  overlayText.textContent = "先選擇材料 pattern，再於 45 秒內把電子送到右側電極。抵達即過關，剩餘傳輸效率決定星等。";
+  overlayButton.textContent = "以此 pattern 開始";
+  obstacles = createLevel(selectedPattern);
+  currentPatternText.textContent = levelPatterns[selectedPattern].name;
+}
+
+function setField(x,y) {
+  if (state !== "playing") return;
+  field = {x,y};
+  const symbol = x === 1 ? "→" : x === -1 ? "←" : y === 1 ? "↓" : "↑";
+  fieldText.textContent = symbol;
+}
+
+document.getElementById("restartBtn").addEventListener("click", showIntro);
+overlayButton.addEventListener("click", resetGame);
+selectTrackButton.addEventListener("click", showIntro);
+trackCards.forEach(card => {
+  card.addEventListener("click", () => selectPattern(card.dataset.pattern));
+});
+document.getElementById("up").onclick = () => setField(0,-1);
+document.getElementById("down").onclick = () => setField(0,1);
+document.getElementById("left").onclick = () => setField(-1,0);
+document.getElementById("right").onclick = () => setField(1,0);
+
+window.addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
+  if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) {
+    e.preventDefault();
+  }
+  if (e.key === "ArrowUp") setField(0,-1);
+  if (e.key === "ArrowDown") setField(0,1);
+  if (e.key === "ArrowLeft") setField(-1,0);
+  if (e.key === "ArrowRight") setField(1,0);
+  if (e.key === " " && state === "playing" && tunnelCooldown <= 0) attemptTunnel();
+});
+window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+function attemptTunnel() {
+  if (electron.energy < 10) {
+    message.textContent = "電子能量不足，無法嘗試穿隧；請改走能障上方或下方。";
+    return;
+  }
+
+  const barrier = obstacles.find(o =>
+    o.type === "barrier" &&
+    !o.passed &&
+    Math.abs(electron.x - o.x) < 48 &&
+    electron.y > o.y &&
+    electron.y < o.y + o.h
+  );
+
+  if (!barrier) {
+    message.textContent = "附近沒有可穿隧的薄能障。";
+    return;
+  }
+
+  tunnelCooldown = 3;
+
+  const chance = Math.min(0.85, 0.30 + electron.energy / 180);
+  if (Math.random() < chance) {
+    electron.x = barrier.x + barrier.w + 35;
+    electron.energy = Math.max(0, electron.energy - 12);
+    barrier.passed = true;
+    message.textContent = "穿隧成功：電子越過薄能障，但消耗部分能量。";
+  } else {
+    electron.energy = Math.max(0, electron.energy - 7);
+    electron.vx = -Math.abs(electron.vx) * 0.45;
+    message.textContent = "穿隧失敗：電子被能障反射。";
+  }
+}
+
+function circleHit(a, o) {
+  return Math.hypot(a.x-o.x, a.y-o.y) < a.r + o.r;
+}
+
+function update(dt) {
+  if (state !== "playing") return;
+
+  elapsed += dt;
+  const timeLeft = TIME_LIMIT - elapsed;
+  if (timeLeft <= 0) {
+    endGame("lost", "時間耗盡：電子未能在 45 秒內抵達電極。");
+    return;
+  }
+
+  tunnelCooldown = Math.max(0, tunnelCooldown - dt);
+  flash = Math.max(0, flash - dt);
+
+  if (trapTimer > 0) {
+    trapTimer -= dt;
+    electron.vx *= 0.84;
+    electron.vy *= 0.84;
+  } else {
+    const accel = 155;
+    electron.vx += field.x * accel * dt;
+    electron.vy += field.y * accel * dt;
+
+    // W / S 僅提供小幅輔助修正，不取代電場控制。
+    if (keys["w"]) electron.vy -= 95 * dt;
+    if (keys["s"]) electron.vy += 95 * dt;
+
+    electron.vx *= 0.985;
+    electron.vy *= 0.985;
+  }
+
+  const maxSpeed = 180;
+  const speed = Math.hypot(electron.vx, electron.vy);
+  if (speed > maxSpeed) {
+    electron.vx = electron.vx / speed * maxSpeed;
+    electron.vy = electron.vy / speed * maxSpeed;
+  }
+
+  electron.x += electron.vx * dt;
+  electron.y += electron.vy * dt;
+
+  if (electron.y < 30 || electron.y > canvas.height-30) {
+    electron.y = Math.max(30, Math.min(canvas.height-30, electron.y));
+    electron.vy *= -0.42;
+    electron.transmission = Math.max(0, electron.transmission - 1.2);
+  }
+  if (electron.x < 24) {
+    electron.x = 24;
+    electron.vx *= -0.4;
+  }
+
+  for (const o of obstacles) {
+    if (o.type === "defect" && !o.hit && circleHit(electron,o)) {
+      o.hit = true;
+      electron.transmission = Math.max(0, electron.transmission - 14);
+      electron.energy = Math.max(0, electron.energy - 8);
+      electron.vx *= -0.35;
+      electron.vy += (Math.random()-.5)*130;
+      message.textContent = "點缺陷造成散射：傳輸效率與能量下降。";
+    }
+
+    if (o.type === "trap" && !o.hit && circleHit(electron,o)) {
+      o.hit = true;
+      trapTimer = 2.2;
+      electron.transmission = Math.max(0, electron.transmission - 9);
+      message.textContent = "電子進入陷阱態，約 2 秒內難以有效漂移。";
+    }
+
+    if (o.type === "hole" && circleHit(electron,o)) {
+      flash = 0.7;
+      endGame("lost", "電子與電洞發生復合，傳輸立即終止。");
+      return;
+    }
+
+    if (o.type === "barrier") {
+      const intersects =
+        electron.x + electron.r > o.x &&
+        electron.x - electron.r < o.x + o.w &&
+        electron.y > o.y &&
+        electron.y < o.y + o.h;
+
+      if (intersects && !o.passed) {
+        electron.x = o.x - electron.r;
+        electron.vx = -Math.abs(electron.vx)*0.42;
+        electron.energy = Math.max(0, electron.energy - 0.06);
+      }
+    }
+
+    if (o.type === "contact") {
+      const withinY = electron.y > o.y && electron.y < o.y + o.h;
+      if (electron.x + electron.r >= o.x && withinY) {
+        endGame("won", "");
+        return;
+      }
+    }
+  }
+
+  if (electron.transmission <= 0) {
+    endGame("lost", "過度散射使傳輸效率降至 0%，電子失去有效傳輸能力。");
+  }
+}
+
+function drawLattice() {
+  ctx.save();
+  ctx.globalAlpha = 0.26;
+  for (let x=40; x<canvas.width; x+=55) {
+    for (let y=40; y<canvas.height; y+=55) {
+      ctx.beginPath();
+      ctx.arc(x,y,4,0,Math.PI*2);
+      ctx.fillStyle = "#8eb6d8";
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawArrow(x,y,dx,dy) {
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.strokeStyle = "#64d8ff";
+  ctx.fillStyle = "#64d8ff";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.lineTo(dx,dy);
+  ctx.stroke();
+  const a = Math.atan2(dy,dx);
+  ctx.beginPath();
+  ctx.moveTo(dx,dy);
+  ctx.lineTo(dx-14*Math.cos(a-.45),dy-14*Math.sin(a-.45));
+  ctx.lineTo(dx-14*Math.cos(a+.45),dy-14*Math.sin(a+.45));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawObstacle(o) {
+  if (o.type === "defect") {
+    ctx.fillStyle = o.hit ? "#705d32" : "#f4c542";
+    ctx.beginPath();
+    ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle="#634a00";
+    ctx.font="bold 18px sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText("×",o.x,o.y+6);
+  }
+
+  if (o.type === "trap") {
+    ctx.strokeStyle="#8d6cff";
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(o.x,o.y,o.r-9,0,Math.PI*2);
+    ctx.stroke();
+  }
+
+  if (o.type === "hole") {
+    ctx.fillStyle="#ff5b6e";
+    ctx.beginPath();
+    ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle="#fff";
+    ctx.font="bold 18px sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText("+",o.x,o.y+6);
+  }
+
+  if (o.type === "barrier") {
+    ctx.fillStyle="rgba(143,224,255,.27)";
+    ctx.fillRect(o.x,o.y,o.w,o.h);
+    ctx.strokeStyle="#8fe0ff";
+    ctx.strokeRect(o.x,o.y,o.w,o.h);
+  }
+
+  if (o.type === "contact") {
+    ctx.fillStyle="#aab4c2";
+    ctx.fillRect(o.x,o.y,o.w,o.h);
+    ctx.fillStyle="#e3e8ee";
+    for(let yy=o.y+10; yy<o.y+o.h; yy+=24) {
+      ctx.fillRect(o.x+5,yy,o.w-10,6);
+    }
+  }
+}
+
+function currentStars() {
+  return electron.transmission >= 80 ? 3 :
+         electron.transmission >= 50 ? 2 :
+         electron.transmission > 0 ? 1 : 0;
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const grad = ctx.createLinearGradient(0,0,canvas.width,0);
+  grad.addColorStop(0,"#0b1a2d");
+  grad.addColorStop(1,"#14273b");
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  drawLattice();
+
+  ctx.fillStyle="rgba(100,216,255,.07)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  drawArrow(92,68,field.x*58,field.y*58);
+  ctx.fillStyle="#9fb3cc";
+  ctx.font="14px sans-serif";
+  ctx.textAlign="left";
+  ctx.fillText("外加電場",30,30);
+
+  for (const o of obstacles) drawObstacle(o);
+
+  ctx.shadowBlur=20;
+  ctx.shadowColor="#64d8ff";
+  ctx.fillStyle="#64d8ff";
+  ctx.beginPath();
+  ctx.arc(electron.x,electron.y,electron.r,0,Math.PI*2);
+  ctx.fill();
+  ctx.shadowBlur=0;
+
+  ctx.fillStyle="#04121d";
+  ctx.font="bold 18px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText("−",electron.x,electron.y+6);
+
+  if (flash > 0) {
+    ctx.fillStyle=`rgba(255,70,90,${flash})`;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
+
+  const timeLeft = Math.max(0, TIME_LIMIT - elapsed);
+  energyText.textContent = `${Math.round(electron.energy)}%`;
+  energyBar.style.width = `${electron.energy}%`;
+  transmissionText.textContent = `${Math.round(electron.transmission)}%`;
+  transmissionBar.style.width = `${electron.transmission}%`;
+  timeLeftText.textContent = `${timeLeft.toFixed(1)} s`;
+  tunnelText.textContent = tunnelCooldown <= 0 ? "Ready" : `${tunnelCooldown.toFixed(1)} s`;
+
+  const stars = currentStars();
+  ratingText.textContent = "★".repeat(stars) + "☆".repeat(3-stars);
+}
+
+function loop(ts) {
+  const dt = Math.min(0.033,(ts-last)/1000 || 0);
+  last = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+drawTrackPreviews();
+selectPattern("balanced");
+showIntro();
+draw();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
